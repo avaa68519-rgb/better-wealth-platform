@@ -362,7 +362,8 @@ export default function AdminPage() {
   async function saveHolding(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (portfolioLocked.current) return;
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const clientId = activePortfolioClientId;
     if (!clientId) { setPortfolioMessage("Select and search for a customer before saving an investment."); return; }
     const assetSymbol = String(form.get("assetSymbol")).trim().toUpperCase();
@@ -399,11 +400,13 @@ export default function AdminPage() {
       }
       if (!savedId) { setPortfolioMessage("Unable to identify the saved investment record."); return; }
       await writeAudit("holding", savedId, existing ? "additional_investment_recorded" : "investment_recorded", { client_id: clientId, asset_symbol: assetSymbol });
-      event.currentTarget.reset(); navigator.vibrate?.(25);
+      formElement.reset(); navigator.vibrate?.(25);
       setPortfolioMessage(existing ? "Additional purchase recorded successfully. Units and the weighted performance were updated." : "Investment recorded successfully at the current price. Performance starts at 0.00% for a new holding.");
       await loadPortfolio(clientId);
-    } catch {
-      setPortfolioMessage("The investment could not be saved. Please check your connection and try again.");
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Unexpected client error";
+      setPortfolioMessage(`The investment may have been saved, but the page could not finish updating: ${detail}`);
+      await loadPortfolio(clientId);
     } finally {
       setBusyAction(null); portfolioLocked.current = false;
     }

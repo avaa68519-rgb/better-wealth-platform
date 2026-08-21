@@ -167,5 +167,6 @@ button,input,select { font:inherit; }
 .bw-portal-section { padding-left:clamp(32px,7vw,118px); padding-right:clamp(32px,7vw,118px); }
 .bw-portal-copy { justify-self:start; }
 
-/* Roboto replaces the former Inter UI treatment; Poppins remains reserved for display headings. */
-.bw-home,.signin-page,.portal-shell,.admin-shell,.side-nav a,.admin-nav a,.bw-dashboard-performance header strong,.bw-dashboard-allocation header strong,.bw-dashboard-holdings header strong { font-family:"Roboto",Arial,sans-serif; }
+/* Open Sans replaces the former condensed UI treatment; Poppins remains reserved for display headings. */
+.bw-home,.signin-page,.portal-shell,.admin-shell,.side-nav a,.admin-nav a,.bw-dashboard-performance header strong,.bw-dashboard-allocation header strong,.bw-dashboard-holdings header strong { font-family:"Open Sans",Arial,sans-serif; }
+.bw-nav-links a,.bw-nav-actions a { font-family:"Open Sans",Arial,sans-serif; letter-spacing:.075em; }

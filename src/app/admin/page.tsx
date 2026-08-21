@@ -22,6 +22,10 @@ type FundingRequest = {
   submitted_at: string;
   declared_amount?: number;
   requested_amount?: number;
+  transaction_reference?: string;
+  destination_address?: string;
+  payout_reference?: string | null;
+  internal_note?: string | null;
   kind: "deposit" | "withdrawal";
 };
 
@@ -31,7 +35,13 @@ type Verification = {
   document_type: string;
   status: string;
   submitted_at: string;
+  document_path: string;
+  selfie_path: string;
+  rejection_reason?: string | null;
 };
+
+type PortfolioAccount = { id: string; client_id: string; name: string; currency_code: string; status: string };
+type Holding = { id: string; portfolio_account_id: string; asset_name: string; asset_symbol: string; asset_class: string; units: number; unit_price: number; performance_percent: number; valuation_currency: string; valued_at: string };
 
 type Audit = {
   id: number;
@@ -60,12 +70,15 @@ export default function AdminPage() {
   const [requests, setRequests] = useState<FundingRequest[]>([]);
   const [verifications, setVerifications] = useState<Verification[]>([]);
   const [audits, setAudits] = useState<Audit[]>([]);
+  const [accounts, setAccounts] = useState<PortfolioAccount[]>([]);
+  const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [selectedAction, setSelectedAction] = useState<PendingAction | null>(null);
   const [message, setMessage] = useState("Loading live operations data…");
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   async function load() {
     const supabase = createClient();
-    const [clientResult, verificationResult, depositResult, withdrawalResult, auditResult] =
+    const [clientResult, verificationResult, depositResult, withdrawalResult, auditResult, accountResult] =
       await Promise.all([
         supabase
           .from("profiles")
@@ -73,16 +86,16 @@ export default function AdminPage() {
           .order("created_at", { ascending: false }),
         supabase
           .from("identity_verifications")
-          .select("id, client_id, document_type, status, submitted_at")
+          .select("id, client_id, document_type, document_path, selfie_path, status, rejection_reason, submitted_at")
           .order("submitted_at", { ascending: false }),
         supabase
           .from("deposit_requests")
-          .select("id, client_id, asset_symbol, network, status, submitted_at, declared_amount")
+          .select("id, client_id, asset_symbol, network, status, submitted_at, declared_amount, transaction_reference, internal_note")
           .order("submitted_at", { ascending: false })
           .limit(25),
         supabase
           .from("withdrawal_requests")
-          .select("id, client_id, asset_symbol, network, status, submitted_at, requested_amount")
+          .select("id, client_id, asset_symbol, network, status, submitted_at, requested_amount, destination_address, payout_reference, internal_note")
           .order("submitted_at", { ascending: false })
           .limit(25),
         supabase
@@ -90,6 +103,7 @@ export default function AdminPage() {
           .select("id, entity_type, event_type, occurred_at")
           .order("occurred_at", { ascending: false })
           .limit(10),
+        supabase.from("portfolio_accounts").select("id, client_id, name, currency_code, status").order("created_at", { ascending: false }),
       ]);
 
     const error =
@@ -97,7 +111,8 @@ export default function AdminPage() {
       verificationResult.error ??
       depositResult.error ??
       withdrawalResult.error ??
-      auditResult.error;
+      auditResult.error ??
+      accountResult.error;
 
     if (error) {
       setMessage(`Unable to load operations data: ${error.message}`);
@@ -113,6 +128,13 @@ export default function AdminPage() {
       ].sort((a, b) => Date.parse(b.submitted_at) - Date.parse(a.submitted_at)),
     );
     setAudits((auditResult.data ?? []) as Audit[]);
+    setAccounts((accountResult.data ?? []) as PortfolioAccount[]);
+    const accountIds = (accountResult.data ?? []).map((account) => account.id);
+    if (accountIds.length) {
+      const holdingResult = await supabase.from("holdings").select("id, portfolio_account_id, asset_name, asset_symbol, asset_class, units, unit_price, performance_percent, valuation_currency, valued_at").in("portfolio_account_id", accountIds).order("valued_at", { ascending: false });
+      if (holdingResult.error) { setMessage(`Unable to load holdings: ${holdingResult.error.message}`); return; }
+      setHoldings((holdingResult.data ?? []) as Holding[]);
+    } else setHoldings([]);
     setMessage("");
   }
 
@@ -294,6 +316,62 @@ export default function AdminPage() {
     await load();
   }
 
+  async function openKycFile(path: string) {
+    setBusyAction(`file-${path}`);
+    const { data, error } = await createClient().storage.from("kyc-documents").createSignedUrl(path, 60);
+    setBusyAction(null);
+    if (error || !data?.signedUrl) { setMessage(`Unable to open the private file: ${error?.message ?? "No signed link was created."}`); return; }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  }
+
+  async function saveRequestDetails(event: FormEvent<HTMLFormElement>, request: FundingRequest) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setBusyAction(`details-${request.kind}-${request.id}`);
+    const table = request.kind === "deposit" ? "deposit_requests" : "withdrawal_requests";
+    const changes = request.kind === "deposit"
+      ? { internal_note: String(form.get("internalNote") ?? "").trim() || null }
+      : { internal_note: String(form.get("internalNote") ?? "").trim() || null, payout_reference: String(form.get("payoutReference") ?? "").trim() || null };
+    const { error } = await createClient().from(table).update(changes).eq("id", request.id);
+    setBusyAction(null);
+    if (error) { setMessage(error.message); return; }
+    await writeAudit(request.kind === "deposit" ? "deposit_request" : "withdrawal_request", request.id, "request_details_updated", { client_id: request.client_id });
+    setMessage("Review notes saved. These notes are internal and are not visible to the customer.");
+    await load();
+  }
+
+  async function saveHolding(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const clientId = String(form.get("clientId"));
+    const assetSymbol = String(form.get("assetSymbol")).trim().toUpperCase();
+    setBusyAction("holding");
+    const supabase = createClient();
+    let account = accounts.find((item) => item.client_id === clientId && item.status === "active");
+    if (!account) {
+      const created = await supabase.from("portfolio_accounts").insert({ client_id: clientId, name: "Investment portfolio", currency_code: "USD", status: "active" }).select("id, client_id, name, currency_code, status").single();
+      if (created.error || !created.data) { setBusyAction(null); setMessage(created.error?.message ?? "Unable to create a portfolio account."); return; }
+      account = created.data as PortfolioAccount;
+    }
+    const { data, error } = await supabase.from("holdings").upsert({
+      portfolio_account_id: account.id,
+      asset_name: String(form.get("assetName")).trim(),
+      asset_symbol: assetSymbol,
+      asset_class: String(form.get("assetClass")).trim(),
+      units: Number(form.get("units")),
+      unit_price: Number(form.get("unitPrice")),
+      performance_percent: Number(form.get("performancePercent")),
+      valuation_currency: "USD",
+      valued_at: new Date().toISOString(),
+    }, { onConflict: "portfolio_account_id,asset_symbol" }).select("id").single();
+    setBusyAction(null);
+    if (error || !data) { setMessage(error?.message ?? "Unable to save the holding. Run the portfolio migration before using this form."); return; }
+    await writeAudit("holding", data.id, "holding_valued", { client_id: clientId, asset_symbol: assetSymbol });
+    event.currentTarget.reset();
+    setMessage("Investment holding saved. The client portal now reflects the current valuation and performance percentage.");
+    await load();
+  }
+
   return (
     <main className="admin-shell">
       <aside className="admin-sidebar">
@@ -305,6 +383,7 @@ export default function AdminPage() {
           <a className="admin-active" href="#overview"><span>◈</span> Overview</a>
           <a href="#pending"><span>!</span> Pending actions <b>{pendingActions.length}</b></a>
           <a href="#clients"><span>◎</span> Clients</a>
+          <a href="#portfolio"><span>◫</span> Portfolios</a>
           <a href="#funding"><span>↗</span> Funding</a>
           <a href="#wallets"><span>◌</span> Wallet assignments</a>
           <Link href="/admin/support"><span>?</span> Support queue</Link>
@@ -348,7 +427,7 @@ export default function AdminPage() {
 
           <div className="pending-actions-table">
             <div className="pending-actions-head">
-              <span>Action</span><span>Customer</span><span>Details</span><span>Submitted</span><span>Status</span><span>Decision</span>
+              <span>Action</span><span>Customer</span><span>Details</span><span>Review</span><span>Submitted</span><span>Status</span><span>Decision</span>
             </div>
             {pendingActions.length ? pendingActions.map((action) => {
               const record = action.kind === "kyc" ? action.verification : action.request;
@@ -363,6 +442,7 @@ export default function AdminPage() {
                       ? displayStatus(action.verification.document_type)
                       : `${action.request.asset_symbol} · ${action.request.network} · ${action.request.declared_amount ?? action.request.requested_amount}`}
                   </span>
+                  <button className="review-link" type="button" onClick={() => setSelectedAction(action)}>View details</button>
                   <time>{new Date(action.submittedAt).toLocaleString()}</time>
                   <em className="status-pending">{displayStatus(record.status)}</em>
                   <span className="admin-review-actions">
@@ -385,6 +465,17 @@ export default function AdminPage() {
           </div>
         </section>
 
+        {selectedAction && <section className="admin-panel action-detail-panel" aria-live="polite">
+          <div className="admin-panel-heading"><div><p className="eyebrow">Submission review</p><h2>{selectedAction.kind === "kyc" ? "Identity verification" : `${selectedAction.kind === "deposit" ? "Deposit" : "Withdrawal"} request`}</h2></div><button className="secondary-button" type="button" onClick={() => setSelectedAction(null)}>Close review</button></div>
+          {(() => {
+            const record = selectedAction.kind === "kyc" ? selectedAction.verification : selectedAction.request;
+            const client = clients.find((entry) => entry.id === record.client_id);
+            return <div className="action-detail-body"><div><span>Customer</span><strong>{nameOf(client)}</strong><small>{client?.country_code || "Country not provided"} · {client?.identity_status || "not started"}</small></div>
+              {selectedAction.kind === "kyc" ? <div className="detail-files"><p><span>Document type</span><strong>{displayStatus(selectedAction.verification.document_type)}</strong></p><button type="button" disabled={busyAction?.startsWith("file-")} onClick={() => void openKycFile(selectedAction.verification.document_path)}>Open ID document</button><button type="button" disabled={busyAction?.startsWith("file-")} onClick={() => void openKycFile(selectedAction.verification.selfie_path)}>Open selfie with ID</button><small>Files remain private; each review link expires after one minute.</small></div> : <form className="admin-form request-detail-form" onSubmit={(event) => void saveRequestDetails(event, selectedAction.request)}><div className="review-data"><p><span>Asset / network</span><strong>{selectedAction.request.asset_symbol} · {selectedAction.request.network}</strong></p><p><span>Amount</span><strong>{selectedAction.request.declared_amount ?? selectedAction.request.requested_amount}</strong></p>{selectedAction.kind === "deposit" ? <p><span>Transaction reference</span><code>{selectedAction.request.transaction_reference}</code></p> : <p><span>Destination address</span><code>{selectedAction.request.destination_address}</code></p>}</div>{selectedAction.kind === "withdrawal" && <label>Payout transaction reference<input name="payoutReference" defaultValue={selectedAction.request.payout_reference ?? ""} placeholder="Enter after the transfer is completed" /></label>}<label>Internal review note<textarea name="internalNote" defaultValue={selectedAction.request.internal_note ?? ""} placeholder="Reason for decision, confirmations completed, or exception notes" /></label><button className="button" disabled={busyAction === `details-${selectedAction.request.kind}-${selectedAction.request.id}`} type="submit">Save review details</button></form>}
+            </div>;
+          })()}
+        </section>}
+
         <section id="clients" className="admin-panel">
           <div className="admin-panel-heading"><div><p className="eyebrow">Clients</p><h2>Client directory</h2></div></div>
           <div className="admin-table">
@@ -398,6 +489,22 @@ export default function AdminPage() {
               </div>
             ))}
           </div>
+        </section>
+
+        <section id="portfolio" className="admin-panel portfolio-panel">
+          <div className="admin-panel-heading"><div><p className="eyebrow">Portfolio management</p><h2>Add or update a client investment.</h2></div></div>
+          <p className="admin-panel-copy">Enter the product, units, current unit value, and performance percentage approved by your operations process. These are client-record values only; this system does not execute trades or transfers.</p>
+          <form className="portfolio-form" onSubmit={saveHolding}>
+            <label>Client<select name="clientId" required defaultValue=""><option value="" disabled>Select client</option>{clients.filter((client) => client.role === "client").map((client) => <option key={client.id} value={client.id}>{nameOf(client)}</option>)}</select></label>
+            <label>Investment product<input name="assetName" required placeholder="e.g. Global Income Portfolio" /></label>
+            <label>Symbol / code<input name="assetSymbol" required maxLength={16} placeholder="e.g. GIP" /></label>
+            <label>Product class<input name="assetClass" required placeholder="e.g. Managed fund" /></label>
+            <label>Units held<input name="units" required type="number" min="0" step="any" placeholder="0" /></label>
+            <label>Current unit value (USD)<input name="unitPrice" required type="number" min="0" step="any" placeholder="0.00" /></label>
+            <label>Performance (%)<input name="performancePercent" required type="number" min="-100" step="0.01" defaultValue="0" /></label>
+            <button className="button" disabled={busyAction === "holding"} type="submit">Save investment <span>→</span></button>
+          </form>
+          <div className="holding-admin-list">{holdings.length ? holdings.map((holding) => { const account = accounts.find((item) => item.id === holding.portfolio_account_id); return <div key={holding.id}><strong>{holding.asset_name} <small>{holding.asset_symbol}</small></strong><span>{nameOf(clients.find((client) => client.id === account?.client_id))}</span><span>{Number(holding.units).toLocaleString()} units × ${Number(holding.unit_price).toLocaleString()} · {Number(holding.performance_percent).toFixed(2)}%</span></div>; }) : <p className="empty-copy">No investment holdings have been recorded yet.</p>}</div>
         </section>
 
         <section id="wallets" className="admin-wallet-section">

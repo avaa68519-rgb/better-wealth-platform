@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import { SignOutButton } from "@/components/sign-out-button";
 import { createClient } from "@/lib/supabase/client";
 
 type Ticket = {
@@ -72,6 +73,7 @@ export default function SupportPage() {
           <Link href="/portal/funding"><span>↗</span> Funding</Link>
           <Link className="nav-active" href="/portal/support"><span>?</span> Support</Link>
         </nav>
+        <SignOutButton />
       </aside>
       <section className="portal-content support-content">
         <header className="portal-header"><div><p className="eyebrow">Client care</p><h1>How can we help?</h1></div><Link href="/portal" className="back-link">← Back to overview</Link></header>

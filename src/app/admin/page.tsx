@@ -76,6 +76,8 @@ export default function AdminPage() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [portfolioClientId, setPortfolioClientId] = useState("");
   const [activePortfolioClientId, setActivePortfolioClientId] = useState("");
+  const [orderUnits, setOrderUnits] = useState("");
+  const [orderPrice, setOrderPrice] = useState("");
   const [selectedAction, setSelectedAction] = useState<PendingAction | null>(null);
   const [walletMessage, setWalletMessage] = useState("Staff assign public wallet addresses here. Requests are reviewed separately; cryptocurrency is never sent by this application.");
   const [portfolioMessage, setPortfolioMessage] = useState("Add a new investment or use the same product code to replace its current valuation.");
@@ -405,7 +407,7 @@ export default function AdminPage() {
       }
       if (!savedId) { setPortfolioMessage("Unable to identify the saved investment record."); return; }
       await writeAudit("holding", savedId, existing ? "additional_investment_recorded" : "investment_recorded", { client_id: clientId, asset_symbol: assetSymbol });
-      formElement.reset(); navigator.vibrate?.(25);
+      formElement.reset(); setOrderUnits(""); setOrderPrice(""); navigator.vibrate?.(25);
       const successMessage = existing ? "Additional purchase recorded. Units and weighted performance have been updated." : "New investment recorded at the current price. Performance starts at 0.00% for this new holding.";
       setPortfolioMessage(successMessage); setCompletedAction(successMessage);
       await loadPortfolio(clientId);
@@ -577,8 +579,9 @@ export default function AdminPage() {
             <label>Investment product<input name="assetName" required placeholder="e.g. Global Income Portfolio" /></label>
             <label>Symbol / code<input name="assetSymbol" required maxLength={16} placeholder="e.g. GIP" /></label>
             <label>Product class<input name="assetClass" required placeholder="e.g. Managed fund" /></label>
-            <label>Additional units purchased<input name="units" required type="number" min="0" step="any" placeholder="0 (use 0 to adjust only the current price)" /></label>
-            <label>Current unit value (USD)<input name="unitPrice" required type="number" min="0" step="any" placeholder="0.00" /></label>
+            <label>Additional units purchased<input name="units" required type="number" min="0" step="any" value={orderUnits} onChange={(event) => setOrderUnits(event.target.value)} placeholder="0 (use 0 to adjust only the current price)" /></label>
+            <label>Current unit value (USD)<input name="unitPrice" required type="number" min="0" step="any" value={orderPrice} onChange={(event) => setOrderPrice(event.target.value)} placeholder="0.00" /></label>
+            <p className="order-value-preview">{Number(orderUnits) === 0 ? "Valuation-only update — no units will be added." : `Order value to add: $${((Number(orderUnits) || 0) * (Number(orderPrice) || 0)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</p>
             <button className="button" disabled={busyAction === "holding"} type="submit">Record purchase <span>→</span></button>
           </form>
           <div className="holding-admin-list">{holdings.length ? holdings.map((holding) => <div key={holding.id}><strong>{holding.asset_name} <small>{holding.asset_symbol}</small></strong><span>{Number(holding.units).toLocaleString()} units × ${Number(holding.unit_price).toLocaleString()} · {Number(holding.performance_percent).toFixed(2)}%</span><button className="remove-holding" type="button" disabled={busyAction === `delete-${holding.id}`} onClick={() => void deleteHolding(holding)}>{busyAction === `delete-${holding.id}` ? "Removing…" : "Remove"}</button></div>) : <p className="empty-copy">No investment holdings have been recorded for this customer.</p>}</div></> : <p className="empty-copy">Select a customer above to view or manage their portfolio.</p>}

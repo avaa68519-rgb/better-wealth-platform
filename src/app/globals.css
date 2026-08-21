@@ -193,6 +193,15 @@ button,input,select { font:inherit; }
 .request-panel > .status { flex:none; margin-top:2px; white-space:nowrap; }
 @media (max-width:700px) { .request-panel { flex-direction:column; gap:12px; }.request-panel > .status { margin-top:0; } }
 
+/* Present each funding request as a concise record instead of a run-on sentence. */
+.request-panel { display:block; }
+.recent-request-list { display:grid; gap:0; margin-top:16px; }
+.recent-request-list > div { align-items:center; border-top:1px solid #dce5e1; display:grid; gap:14px; grid-template-columns:150px minmax(0,1fr) auto; padding:11px 0; }
+.recent-request-list strong { font-size:12px; text-transform:capitalize; }
+.recent-request-list span { color:#617379; font-size:12px; }
+.recent-request-list em { font-style:normal; white-space:nowrap; }
+@media (max-width:700px) { .recent-request-list > div { gap:5px 10px; grid-template-columns:1fr auto; }.recent-request-list span { grid-column:1 / -1; grid-row:2; } }
+
 /* Keep every plan-card label and feature at a clear, consistent reading weight. */
 .bw-plan-grid > article > p,.bw-plan-grid section small,.bw-plan-grid li,.bw-plan-grid a { font-family:"Open Sans",Arial,sans-serif; font-weight:700; }
 .bw-plan-grid > article > p { font-weight:600; }

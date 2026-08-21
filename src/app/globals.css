@@ -142,7 +142,7 @@ button,input,select { font:inherit; }
 
 /* A subtle upward market path sits behind the client-portfolio preview. */
 .bw-portal-section { isolation:isolate; position:relative; }
-.bw-portfolio-growth-line { height:86%; inset:7% 2% auto; overflow:visible; pointer-events:none; position:absolute; width:96%; z-index:0; }
+.bw-portfolio-growth-line { height:86%; inset:7% 0 auto; overflow:visible; pointer-events:none; position:absolute; width:100%; z-index:0; }
 .bw-portal-copy,.bw-portfolio-dashboard { position:relative; z-index:1; }
 .bw-portfolio-dashboard { z-index:2; }
 @media (max-width:900px) { .bw-portfolio-growth-line { height:74%; inset:18% 0 auto; opacity:.62; width:100%; } }

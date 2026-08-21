@@ -173,3 +173,9 @@ button,input,select { font:inherit; }
 
 /* Navigation and action labels use a deliberately distinct display treatment. */
 .bw-nav-links a,.bw-nav-actions a,.bw-light-button { font-family:"Poppins",Arial,sans-serif; font-size:11px; letter-spacing:.015em; }
+
+/* Give both closing CTA buttons the same strong, centered treatment. */
+.bw-cta > span { font-family:"Open Sans",Arial,sans-serif; font-size:15px; line-height:1.65; }
+.bw-cta > div { align-items:stretch; display:flex; gap:14px; justify-content:center; }
+.bw-cta > div a { align-items:center; display:inline-flex; font-family:"Poppins",Arial,sans-serif; font-size:13px; font-weight:700; gap:18px; justify-content:center; letter-spacing:0; min-height:54px; min-width:184px; text-align:center; }
+.bw-cta > div a b { line-height:1; margin:0; }

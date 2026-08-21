@@ -79,10 +79,12 @@ export default function AdminPage() {
   const [selectedAction, setSelectedAction] = useState<PendingAction | null>(null);
   const [walletMessage, setWalletMessage] = useState("Staff assign public wallet addresses here. Requests are reviewed separately; cryptocurrency is never sent by this application.");
   const [portfolioMessage, setPortfolioMessage] = useState("Add a new investment or use the same product code to replace its current valuation.");
+  const [revaluationMessage, setRevaluationMessage] = useState("Apply a controlled percentage change to all recorded holdings. Every change is written to the audit log.");
   const [message, setMessage] = useState("Loading live operations data…");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const walletLocked = useRef(false);
   const portfolioLocked = useRef(false);
+  const revaluationLocked = useRef(false);
 
   async function load() {
     const supabase = createClient();
@@ -402,6 +404,24 @@ export default function AdminPage() {
     await loadPortfolio(activePortfolioClientId);
   }
 
+  async function applyRevaluation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (revaluationLocked.current) return;
+    const form = new FormData(event.currentTarget);
+    const percent = Number(form.get("percentage"));
+    const direction = String(form.get("direction"));
+    const change = direction === "decrease" ? -percent : percent;
+    if (!Number.isFinite(percent) || percent <= 0 || percent > 1000) { setRevaluationMessage("Enter a percentage greater than 0 and no more than 1,000."); return; }
+    if (!window.confirm(`Apply a ${percent}% ${direction} to every recorded client holding? This changes dashboard valuations and will be audited.`)) return;
+    revaluationLocked.current = true; setBusyAction("revalue"); setRevaluationMessage("Applying the portfolio revaluation…");
+    const { data, error } = await createClient().rpc("apply_portfolio_revaluation", { change_percent: change });
+    setBusyAction(null); revaluationLocked.current = false;
+    if (error) { setRevaluationMessage(error.message.includes("function") ? "The portfolio revaluation database update has not been applied yet. Run the provided Supabase SQL first." : error.message); return; }
+    navigator.vibrate?.(35); setRevaluationMessage(`Revaluation complete. ${data ?? 0} holding${data === 1 ? "" : "s"} updated by ${change}% and recorded in the audit log.`);
+    await load();
+    if (activePortfolioClientId) await loadPortfolio(activePortfolioClientId);
+  }
+
   return (
     <main className="admin-shell">
       <aside className="admin-sidebar">
@@ -414,6 +434,7 @@ export default function AdminPage() {
           <a href="#pending"><span>!</span> Pending actions <b>{pendingActions.length}</b></a>
           <a href="#clients"><span>◎</span> Clients</a>
           <a href="#portfolio"><span>◫</span> Portfolios</a>
+          <a href="#revaluation"><span>↕</span> Revaluation</a>
           <a href="#funding"><span>↗</span> Funding</a>
           <a href="#wallets"><span>◌</span> Wallet assignments</a>
           <Link href="/admin/support"><span>?</span> Support queue</Link>
@@ -536,6 +557,17 @@ export default function AdminPage() {
             <button className="button" disabled={busyAction === "holding"} type="submit">Save investment <span>→</span></button>
           </form>
           <div className="holding-admin-list">{holdings.length ? holdings.map((holding) => <div key={holding.id}><strong>{holding.asset_name} <small>{holding.asset_symbol}</small></strong><span>{Number(holding.units).toLocaleString()} units × ${Number(holding.unit_price).toLocaleString()} · {Number(holding.performance_percent).toFixed(2)}%</span><button className="remove-holding" type="button" disabled={busyAction === `delete-${holding.id}`} onClick={() => void deleteHolding(holding)}>{busyAction === `delete-${holding.id}` ? "Removing…" : "Remove"}</button></div>) : <p className="empty-copy">No investment holdings have been recorded for this customer.</p>}</div></> : <p className="empty-copy">Select a customer above to view or manage their portfolio.</p>}
+        </section>
+
+        <section id="revaluation" className="admin-panel revaluation-panel">
+          <div className="admin-panel-heading"><div><p className="eyebrow">Bulk portfolio revaluation</p><h2>Adjust all recorded holdings.</h2></div></div>
+          <p className="admin-panel-copy">Use this only after an authorised valuation decision. It changes the current unit value of every recorded client holding; it does not place trades or move funds.</p>
+          <form className="revaluation-form" onSubmit={applyRevaluation}>
+            <label>Percentage<input name="percentage" required type="number" min="0.01" max="1000" step="0.01" placeholder="e.g. 2.5" /></label>
+            <label>Direction<select name="direction" defaultValue="increase"><option value="increase">Increase all valuations</option><option value="decrease">Reduce all valuations</option></select></label>
+            <button className="button" disabled={busyAction === "revalue"} type="submit">{busyAction === "revalue" ? "Applying…" : "Apply to all portfolios"} <span>→</span></button>
+          </form>
+          <p className="revaluation-status" role="status">{revaluationMessage}</p>
         </section>
 
         <section id="wallets" className="admin-wallet-section">

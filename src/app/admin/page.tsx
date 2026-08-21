@@ -76,9 +76,11 @@ export default function AdminPage() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [selectedAction, setSelectedAction] = useState<PendingAction | null>(null);
   const [walletMessage, setWalletMessage] = useState("Staff assign public wallet addresses here. Requests are reviewed separately; cryptocurrency is never sent by this application.");
+  const [portfolioMessage, setPortfolioMessage] = useState("Add a new investment or use the same product code to replace its current valuation.");
   const [message, setMessage] = useState("Loading live operations data…");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const walletLocked = useRef(false);
+  const portfolioLocked = useRef(false);
 
   async function load() {
     const supabase = createClient();
@@ -349,15 +351,17 @@ export default function AdminPage() {
 
   async function saveHolding(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (portfolioLocked.current) return;
+    portfolioLocked.current = true;
     const form = new FormData(event.currentTarget);
     const clientId = String(form.get("clientId"));
     const assetSymbol = String(form.get("assetSymbol")).trim().toUpperCase();
-    setBusyAction("holding");
+    setBusyAction("holding"); setPortfolioMessage("Saving this investment valuation…");
     const supabase = createClient();
     let account = accounts.find((item) => item.client_id === clientId && item.status === "active");
     if (!account) {
       const created = await supabase.from("portfolio_accounts").insert({ client_id: clientId, name: "Investment portfolio", currency_code: "USD", status: "active" }).select("id, client_id, name, currency_code, status").single();
-      if (created.error || !created.data) { setBusyAction(null); setMessage(created.error?.message ?? "Unable to create a portfolio account."); return; }
+      if (created.error || !created.data) { portfolioLocked.current = false; setBusyAction(null); setPortfolioMessage(created.error?.message ?? "Unable to create a portfolio account."); return; }
       account = created.data as PortfolioAccount;
     }
     const { data, error } = await supabase.from("holdings").upsert({
@@ -371,11 +375,21 @@ export default function AdminPage() {
       valuation_currency: "USD",
       valued_at: new Date().toISOString(),
     }, { onConflict: "portfolio_account_id,asset_symbol" }).select("id").single();
-    setBusyAction(null);
-    if (error || !data) { setMessage(error?.message ?? "Unable to save the holding. Run the portfolio migration before using this form."); return; }
+    setBusyAction(null); portfolioLocked.current = false;
+    if (error || !data) { setPortfolioMessage(error?.message ?? "Unable to save the holding. Run the portfolio migration before using this form."); return; }
     await writeAudit("holding", data.id, "holding_valued", { client_id: clientId, asset_symbol: assetSymbol });
     event.currentTarget.reset();
-    setMessage("Investment holding saved. The client portal now reflects the current valuation and performance percentage.");
+    navigator.vibrate?.(25); setPortfolioMessage("Investment saved successfully. The customer portal now reflects the current valuation and performance percentage.");
+    await load();
+  }
+
+  async function deleteHolding(holding: Holding) {
+    if (!window.confirm(`Remove ${holding.asset_name} (${holding.asset_symbol}) from this client portfolio?`)) return;
+    setBusyAction(`delete-${holding.id}`); setPortfolioMessage("Removing the investment…");
+    const { error } = await createClient().from("holdings").delete().eq("id", holding.id);
+    setBusyAction(null);
+    if (error) { setPortfolioMessage(error.message); return; }
+    navigator.vibrate?.(25); setPortfolioMessage("Investment removed successfully. The customer portfolio has been updated.");
     await load();
   }
 
@@ -501,6 +515,7 @@ export default function AdminPage() {
         <section id="portfolio" className="admin-panel portfolio-panel">
           <div className="admin-panel-heading"><div><p className="eyebrow">Portfolio management</p><h2>Add or update a client investment.</h2></div></div>
           <p className="admin-panel-copy">Enter the product, units, current unit value, and performance percentage approved by your operations process. These are client-record values only; this system does not execute trades or transfers.</p>
+          <p className="portfolio-action-status" role="status">{portfolioMessage}</p>
           <form className="portfolio-form" onSubmit={saveHolding}>
             <label>Client<select name="clientId" required defaultValue=""><option value="" disabled>Select client</option>{clients.filter((client) => client.role === "client").map((client) => <option key={client.id} value={client.id}>{nameOf(client)}</option>)}</select></label>
             <label>Investment product<input name="assetName" required placeholder="e.g. Global Income Portfolio" /></label>
@@ -511,7 +526,7 @@ export default function AdminPage() {
             <label>Performance (%)<input name="performancePercent" required type="number" min="-100" step="0.01" defaultValue="0" /></label>
             <button className="button" disabled={busyAction === "holding"} type="submit">Save investment <span>→</span></button>
           </form>
-          <div className="holding-admin-list">{holdings.length ? holdings.map((holding) => { const account = accounts.find((item) => item.id === holding.portfolio_account_id); return <div key={holding.id}><strong>{holding.asset_name} <small>{holding.asset_symbol}</small></strong><span>{nameOf(clients.find((client) => client.id === account?.client_id))}</span><span>{Number(holding.units).toLocaleString()} units × ${Number(holding.unit_price).toLocaleString()} · {Number(holding.performance_percent).toFixed(2)}%</span></div>; }) : <p className="empty-copy">No investment holdings have been recorded yet.</p>}</div>
+          <div className="holding-admin-list">{holdings.length ? holdings.map((holding) => { const account = accounts.find((item) => item.id === holding.portfolio_account_id); return <div key={holding.id}><strong>{holding.asset_name} <small>{holding.asset_symbol}</small></strong><span>{nameOf(clients.find((client) => client.id === account?.client_id))}</span><span>{Number(holding.units).toLocaleString()} units × ${Number(holding.unit_price).toLocaleString()} · {Number(holding.performance_percent).toFixed(2)}%</span><button className="remove-holding" type="button" disabled={busyAction === `delete-${holding.id}`} onClick={() => void deleteHolding(holding)}>{busyAction === `delete-${holding.id}` ? "Removing…" : "Remove"}</button></div>; }) : <p className="empty-copy">No investment holdings have been recorded yet.</p>}</div>
         </section>
 
         <section id="wallets" className="admin-wallet-section">

@@ -389,8 +389,12 @@ export default function AdminPage() {
         const totalUnits = existingUnits + additionalUnits;
         if (totalUnits <= 0) { setPortfolioMessage("Add at least one unit when creating a new investment. Use Remove to delete a holding."); return; }
         const averageCost = ((existingUnits * impliedCost) + (additionalUnits * currentPrice)) / totalUnits;
-        const performancePercent = averageCost ? ((currentPrice / averageCost) - 1) * 100 : 0;
-        const updated = await supabase.from("holdings").update({ asset_name: String(form.get("assetName")).trim(), asset_class: String(form.get("assetClass")).trim(), units: totalUnits, unit_price: currentPrice, performance_percent: performancePercent, valued_at: new Date().toISOString() }).eq("id", existing.id).select("id").single();
+        const totalCurrentValue = additionalUnits === 0
+          ? existingUnits * currentPrice
+          : (existingUnits * Number(existing.unit_price)) + (additionalUnits * currentPrice);
+        const blendedUnitPrice = totalCurrentValue / totalUnits;
+        const performancePercent = averageCost ? ((blendedUnitPrice / averageCost) - 1) * 100 : 0;
+        const updated = await supabase.from("holdings").update({ asset_name: String(form.get("assetName")).trim(), asset_class: String(form.get("assetClass")).trim(), units: totalUnits, unit_price: blendedUnitPrice, performance_percent: performancePercent, valued_at: new Date().toISOString() }).eq("id", existing.id).select("id").single();
         if (updated.error || !updated.data) { setPortfolioMessage(updated.error?.message ?? "Unable to record the additional purchase."); return; }
         savedId = updated.data.id;
       } else {

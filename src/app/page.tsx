@@ -10,6 +10,7 @@ export default function Home() {
     <section className="ih-hero">
       <nav className="ih-nav" aria-label="Primary navigation"><Link href="/" className="brand brand-home"><BrandLogo inverse /></Link><div className="ih-links"><a href="#markets">Markets</a><a href="#services">Our approach</a><a href="#plans">Investment plans</a></div><Link href="/sign-in" className="ih-login">Client sign in <span>↗</span></Link></nav>
       <div className="ih-hero-copy"><p className="ih-kicker">Better Wealth Investment Group · 2026</p><h1>Invest with a<br /><em>clearer view.</em></h1><p>Global investment access and a considered private-client experience, brought together in one place.</p><div><a className="ih-primary" href="#plans">Discover Better Wealth <span>↓</span></a><a className="ih-text-link" href="#markets">View markets <span>↗</span></a></div></div>
+      <div className="ih-moon-stage" aria-hidden="true"><span className="ih-rising-moon" /><i /><i /><i /></div>
       <div className="ih-hero-foot"><span>Independent client experience</span><span>Capital is at risk</span><span>Scroll to explore <b>↓</b></span></div>
     </section>
     <section className="ih-intro"><p className="ih-kicker">Our point of view</p><div><h2>A more composed way to stay close to your wealth.</h2><p>We believe investment information should be useful without becoming overwhelming. Our digital experience is designed around the moments that matter: understanding your position, making a request, and having a clear next step.</p></div></section>

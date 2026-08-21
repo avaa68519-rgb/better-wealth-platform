@@ -81,6 +81,13 @@ export default function CreateAccountPage() {
       return;
     }
 
+    // This message is separate from Supabase's email-verification email.
+    void fetch("/api/transactional-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event: "registration_confirmation", clientId: data.user?.id }),
+    });
+
     if (!data.session) {
       setMessage("Check your email to confirm your account, then return here to sign in.");
       setIsSubmitting(false);

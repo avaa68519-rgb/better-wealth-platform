@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { SignOutButton } from "@/components/sign-out-button";
+import { notifyCustomer } from "@/lib/email/notify";
 import { createClient } from "@/lib/supabase/client";
 
 type DepositAddress = { id: string; asset_symbol: string; network: string; public_address: string };
@@ -55,6 +56,7 @@ export default function FundingPage() {
     const { error } = await supabase.from("deposit_requests").insert({ client_id: user?.id, deposit_address_id: selectedAddress.id, asset_symbol: selectedAddress.asset_symbol, network: selectedAddress.network, declared_amount: Number(formData.get("amount")), transaction_reference: String(formData.get("transactionReference") ?? "").trim() });
     setIsSubmitting(false); submitLock.current = false;
     if (error) { setMessage(error.message.includes("deposit_requests_network_transaction_reference_key") ? "This transaction hash has already been submitted. Please do not submit it again; the operations team will review the existing request." : error.message); return; }
+    void notifyCustomer("deposit_received", { asset: selectedAddress.asset_symbol, network: selectedAddress.network, amount: String(formData.get("amount") ?? "") });
     navigator.vibrate?.(25); event.currentTarget.reset(); setMessage("Deposit reference submitted successfully. The operations team will review it before crediting your account."); await loadFundingData();
   }
 
@@ -69,6 +71,7 @@ export default function FundingPage() {
     const { error } = await supabase.from("withdrawal_requests").insert({ client_id: user?.id, asset_symbol, network, requested_amount: Number(formData.get("amount")), destination_address: String(formData.get("destinationAddress") ?? "").trim() });
     setIsSubmitting(false); submitLock.current = false;
     if (error) { setMessage(error.message.includes("row-level security") ? "Withdrawals are available once identity verification has been approved." : error.message); return; }
+    void notifyCustomer("withdrawal_received", { asset: asset_symbol, network, amount: String(formData.get("amount") ?? "") });
     navigator.vibrate?.(25); event.currentTarget.reset(); setMessage("Withdrawal request submitted successfully. The team will review the amount, network, and destination address manually."); await loadFundingData();
   }
 

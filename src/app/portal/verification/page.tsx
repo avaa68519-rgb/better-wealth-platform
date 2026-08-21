@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import { notifyCustomer } from "@/lib/email/notify";
 import { createClient } from "@/lib/supabase/client";
 
 export default function VerificationPage() {
@@ -33,6 +34,7 @@ export default function VerificationPage() {
     const { error } = await supabase.from("identity_verifications").upsert({ client_id: user.id, document_type: form.get("documentType"), document_path: documentPath, selfie_path: selfiePath, status: "pending", submitted_at: new Date().toISOString() }, { onConflict: "client_id" });
     setBusy(false);
     if (error) { setMessage(error.message.includes("row-level security") ? "Your previous verification cannot be replaced yet. Please contact Better Wealth support, or apply the KYC resubmission update in Supabase." : error.message); return; }
+    void notifyCustomer("kyc_pending");
     navigator.vibrate?.(25); setStatus("pending"); setMessage("Verification submitted securely. Withdrawals remain unavailable until a Better Wealth reviewer approves it.");
   }
 

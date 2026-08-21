@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { notifyCustomer } from "@/lib/email/notify";
 import { createClient } from "@/lib/supabase/client";
 
 type Client = {
@@ -290,6 +291,7 @@ export default function AdminPage() {
     await writeAudit("identity_verification", item.id, `verification_${status}`, {
       client_id: item.client_id,
     });
+    if (status === "approved") void notifyCustomer("kyc_approved", {}, item.client_id);
     setBusyAction(null);
     setMessage(
       `KYC ${status}. The customer’s verification status now shows “${status}” in their portal.`,
@@ -324,6 +326,7 @@ export default function AdminPage() {
         `request_${status}`,
         { asset_symbol: request.asset_symbol, network: request.network },
       );
+      if (status === "approved") void notifyCustomer(request.kind === "deposit" ? "deposit_approved" : "withdrawal_approved", { asset: request.asset_symbol, network: request.network, amount: String(request.declared_amount ?? request.requested_amount ?? "") }, request.client_id);
     }
     setBusyAction(null);
 

@@ -156,3 +156,9 @@ button,input,select { font:inherit; }
 /* Balanced public composition and one consistent readable marketing-copy font. */
 .bw-market-visual { align-items:center; display:flex; justify-content:center; }.bw-market-visual span { left:auto; position:static; text-align:center; top:auto; }.bw-market-copy,.bw-solutions article p,.bw-plans header > span,.bw-plan-grid > article > p,.bw-portal-copy > p:not(:first-child),.bw-cta > span { font-family:"Roboto",Arial,sans-serif; font-weight:400; letter-spacing:0; }.bw-portal-section { align-items:center; gap:clamp(42px,6vw,88px); grid-template-columns:1fr 1fr; }.bw-portal-copy { justify-self:center; max-width:430px; width:100%; }.bw-portfolio-dashboard { justify-self:center; max-width:620px; }.bw-plan-grid article > div { justify-content:flex-start; }.bw-plan-grid article > div span { margin:0; }
 @media (max-width:900px) { .bw-portal-section { grid-template-columns:1fr; }.bw-portal-copy,.bw-portfolio-dashboard { justify-self:center; }.bw-market-visual span { font-size:clamp(42px,9vw,72px); } }
+
+/* Keep the portfolio narrative and visual in a genuinely even, centered composition. */
+.bw-portal-section { gap:clamp(36px,5vw,68px); }
+.bw-portal-copy { max-width:510px; }
+.bw-portal-copy > p:not(:first-child) { max-width:500px; }
+.bw-portfolio-dashboard { max-width:570px; width:100%; }

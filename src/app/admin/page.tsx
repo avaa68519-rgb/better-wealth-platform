@@ -291,7 +291,7 @@ export default function AdminPage() {
     await writeAudit("identity_verification", item.id, `verification_${status}`, {
       client_id: item.client_id,
     });
-    if (status === "approved") void notifyCustomer("kyc_approved", {}, item.client_id);
+    void notifyCustomer(status === "approved" ? "kyc_approved" : "kyc_rejected", {}, item.client_id);
     setBusyAction(null);
     setMessage(
       `KYC ${status}. The customer’s verification status now shows “${status}” in their portal.`,
@@ -326,7 +326,12 @@ export default function AdminPage() {
         `request_${status}`,
         { asset_symbol: request.asset_symbol, network: request.network },
       );
-      if (status === "approved") void notifyCustomer(request.kind === "deposit" ? "deposit_approved" : "withdrawal_approved", { asset: request.asset_symbol, network: request.network, amount: String(request.declared_amount ?? request.requested_amount ?? "") }, request.client_id);
+      if (["approved", "rejected"].includes(status)) {
+        const event = request.kind === "deposit"
+          ? status === "approved" ? "deposit_approved" : "deposit_rejected"
+          : status === "approved" ? "withdrawal_approved" : "withdrawal_rejected";
+        void notifyCustomer(event, { asset: request.asset_symbol, network: request.network, amount: String(request.declared_amount ?? request.requested_amount ?? "") }, request.client_id);
+      }
     }
     setBusyAction(null);
 

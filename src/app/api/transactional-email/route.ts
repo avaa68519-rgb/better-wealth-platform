@@ -2,8 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { createTransactionalEmail, type TransactionalEmailData, type TransactionalEmailEvent } from "@/lib/email/templates";
 
-const permittedEvents: TransactionalEmailEvent[] = ["registration_confirmation", "deposit_received", "deposit_approved", "withdrawal_received", "withdrawal_approved", "kyc_pending", "kyc_approved"];
-const staffEvents: TransactionalEmailEvent[] = ["deposit_approved", "withdrawal_approved", "kyc_approved"];
+const permittedEvents: TransactionalEmailEvent[] = ["registration_confirmation", "deposit_received", "deposit_approved", "deposit_rejected", "withdrawal_received", "withdrawal_approved", "withdrawal_rejected", "kyc_pending", "kyc_approved", "kyc_rejected"];
+const staffEvents: TransactionalEmailEvent[] = ["deposit_approved", "deposit_rejected", "withdrawal_approved", "withdrawal_rejected", "kyc_approved", "kyc_rejected"];
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.RESEND_API_KEY;
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     if (!serviceKey) return NextResponse.json({ delivered: false, reason: "Staff email delivery is not configured." }, { status: 202 });
     if (!actorId) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
     const { data: actorProfile } = await admin.from("profiles").select("role").eq("id", actorId).maybeSingle();
-    if (!actorProfile || !["admin", "staff"].includes(actorProfile.role)) return NextResponse.json({ error: "Staff access is required." }, { status: 403 });
+    if (!actorProfile || !["super_admin", "compliance", "operations", "support", "admin", "staff"].includes(actorProfile.role)) return NextResponse.json({ error: "Staff access is required." }, { status: 403 });
   } else if (body.event !== "registration_confirmation" && recipientId !== actorId) return NextResponse.json({ error: "You may only notify your own account." }, { status: 403 });
 
   let email = recipientId === actorId ? actorEmail : undefined;

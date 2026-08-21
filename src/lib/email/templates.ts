@@ -2,10 +2,13 @@ export type TransactionalEmailEvent =
   | "registration_confirmation"
   | "deposit_received"
   | "deposit_approved"
+  | "deposit_rejected"
   | "withdrawal_received"
   | "withdrawal_approved"
+  | "withdrawal_rejected"
   | "kyc_pending"
-  | "kyc_approved";
+  | "kyc_approved"
+  | "kyc_rejected";
 
 export type TransactionalEmailData = { asset?: string; network?: string; amount?: string };
 
@@ -24,10 +27,13 @@ export function createTransactionalEmail(event: TransactionalEmailEvent, firstNa
     registration_confirmation: { subject: "Welcome to Better Wealth", title: "Your account has been created", body: `Hello ${name},<br/><br/>Your Better Wealth client account has been created. Please use the separate email-verification message to confirm your email address, then sign in securely.` },
     deposit_received: { subject: "We received your deposit submission", title: "Deposit submission received", body: `Hello ${name},<br/><br/>${details}Your deposit reference is awaiting manual review. We will update your client portal when the review is complete.` },
     deposit_approved: { subject: "Your deposit has been approved", title: "Deposit approved", body: `Hello ${name},<br/><br/>${details}Your deposit submission has been approved. Your client portal now reflects the current status.` },
+    deposit_rejected: { subject: "Update on your deposit submission", title: "Deposit submission not approved", body: `Hello ${name},<br/><br/>${details}Your deposit submission was not approved. Please review the request status in your client portal or contact support for assistance.` },
     withdrawal_received: { subject: "We received your withdrawal request", title: "Withdrawal request received", body: `Hello ${name},<br/><br/>${details}Your request is awaiting manual review. We will never request your private key or seed phrase.` },
     withdrawal_approved: { subject: "Your withdrawal request has been approved", title: "Withdrawal request approved", body: `Hello ${name},<br/><br/>${details}Your request has been approved for manual processing. Any blockchain transfer is completed outside this application.` },
+    withdrawal_rejected: { subject: "Update on your withdrawal request", title: "Withdrawal request not approved", body: `Hello ${name},<br/><br/>${details}Your withdrawal request was not approved. Please review the request status in your client portal or contact support for assistance.` },
     kyc_pending: { subject: "Your identity verification is being reviewed", title: "Identity verification received", body: `Hello ${name},<br/><br/>We received your identity-verification submission. It is awaiting review by the Better Wealth operations team. Withdrawals remain unavailable until approval.` },
     kyc_approved: { subject: "Your identity verification has been approved", title: "Identity verification approved", body: `Hello ${name},<br/><br/>Your identity verification has been approved. Your client portal now reflects the updated status.` },
+    kyc_rejected: { subject: "Update on your identity verification", title: "Identity verification not approved", body: `Hello ${name},<br/><br/>Your identity-verification submission was not approved. Please review your client portal and submit a new verification if requested.` },
   };
   const message = messages[event];
   return { subject: message.subject, html: layout(message.title, message.body) };

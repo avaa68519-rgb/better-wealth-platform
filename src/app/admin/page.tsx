@@ -362,36 +362,51 @@ export default function AdminPage() {
   async function saveHolding(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (portfolioLocked.current) return;
-    portfolioLocked.current = true;
     const form = new FormData(event.currentTarget);
     const clientId = activePortfolioClientId;
     if (!clientId) { setPortfolioMessage("Select and search for a customer before saving an investment."); return; }
     const assetSymbol = String(form.get("assetSymbol")).trim().toUpperCase();
+    const additionalUnits = Number(form.get("units"));
+    const currentPrice = Number(form.get("unitPrice"));
+    if (!assetSymbol || !Number.isFinite(additionalUnits) || additionalUnits < 0 || !Number.isFinite(currentPrice) || currentPrice < 0) { setPortfolioMessage("Enter a product code, zero or more additional units, and a current unit value."); return; }
+    portfolioLocked.current = true;
     setBusyAction("holding"); setPortfolioMessage("Saving this investment valuation…");
-    const supabase = createClient();
-    let account = accounts.find((item) => item.client_id === clientId && item.status === "active");
-    if (!account) {
-      const created = await supabase.from("portfolio_accounts").insert({ client_id: clientId, name: "Investment portfolio", currency_code: "USD", status: "active" }).select("id, client_id, name, currency_code, status").single();
-      if (created.error || !created.data) { portfolioLocked.current = false; setBusyAction(null); setPortfolioMessage(created.error?.message ?? "Unable to create a portfolio account."); return; }
-      account = created.data as PortfolioAccount;
+    try {
+      const supabase = createClient();
+      let account = accounts.find((item) => item.client_id === clientId && item.status === "active");
+      if (!account) {
+        const created = await supabase.from("portfolio_accounts").insert({ client_id: clientId, name: "Investment portfolio", currency_code: "USD", status: "active" }).select("id, client_id, name, currency_code, status").single();
+        if (created.error || !created.data) { setPortfolioMessage(created.error?.message ?? "Unable to create a portfolio account."); return; }
+        account = created.data as PortfolioAccount;
+      }
+      const existing = holdings.find((holding) => holding.portfolio_account_id === account.id && holding.asset_symbol === assetSymbol);
+      let savedId: string | undefined;
+      if (existing) {
+        const existingUnits = Number(existing.units);
+        const impliedCost = Number(existing.performance_percent) <= -100 ? Number(existing.unit_price) : Number(existing.unit_price) / (1 + Number(existing.performance_percent) / 100);
+        const totalUnits = existingUnits + additionalUnits;
+        if (totalUnits <= 0) { setPortfolioMessage("Add at least one unit when creating a new investment. Use Remove to delete a holding."); return; }
+        const averageCost = ((existingUnits * impliedCost) + (additionalUnits * currentPrice)) / totalUnits;
+        const performancePercent = averageCost ? ((currentPrice / averageCost) - 1) * 100 : 0;
+        const updated = await supabase.from("holdings").update({ asset_name: String(form.get("assetName")).trim(), asset_class: String(form.get("assetClass")).trim(), units: totalUnits, unit_price: currentPrice, performance_percent: performancePercent, valued_at: new Date().toISOString() }).eq("id", existing.id).select("id").single();
+        if (updated.error || !updated.data) { setPortfolioMessage(updated.error?.message ?? "Unable to record the additional purchase."); return; }
+        savedId = updated.data.id;
+      } else {
+        if (additionalUnits <= 0) { setPortfolioMessage("Enter at least one unit for a new investment."); return; }
+        const created = await supabase.from("holdings").insert({ portfolio_account_id: account.id, asset_name: String(form.get("assetName")).trim(), asset_symbol: assetSymbol, asset_class: String(form.get("assetClass")).trim(), units: additionalUnits, unit_price: currentPrice, performance_percent: 0, valuation_currency: "USD", valued_at: new Date().toISOString() }).select("id").single();
+        if (created.error || !created.data) { setPortfolioMessage(created.error?.message ?? "Unable to record the investment purchase."); return; }
+        savedId = created.data.id;
+      }
+      if (!savedId) { setPortfolioMessage("Unable to identify the saved investment record."); return; }
+      await writeAudit("holding", savedId, existing ? "additional_investment_recorded" : "investment_recorded", { client_id: clientId, asset_symbol: assetSymbol });
+      event.currentTarget.reset(); navigator.vibrate?.(25);
+      setPortfolioMessage(existing ? "Additional purchase recorded successfully. Units and the weighted performance were updated." : "Investment recorded successfully at the current price. Performance starts at 0.00% for a new holding.");
+      await loadPortfolio(clientId);
+    } catch {
+      setPortfolioMessage("The investment could not be saved. Please check your connection and try again.");
+    } finally {
+      setBusyAction(null); portfolioLocked.current = false;
     }
-    const { data, error } = await supabase.from("holdings").upsert({
-      portfolio_account_id: account.id,
-      asset_name: String(form.get("assetName")).trim(),
-      asset_symbol: assetSymbol,
-      asset_class: String(form.get("assetClass")).trim(),
-      units: Number(form.get("units")),
-      unit_price: Number(form.get("unitPrice")),
-      performance_percent: Number(form.get("performancePercent")),
-      valuation_currency: "USD",
-      valued_at: new Date().toISOString(),
-    }, { onConflict: "portfolio_account_id,asset_symbol" }).select("id").single();
-    setBusyAction(null); portfolioLocked.current = false;
-    if (error || !data) { setPortfolioMessage(error?.message ?? "Unable to save the holding. Run the portfolio migration before using this form."); return; }
-    await writeAudit("holding", data.id, "holding_valued", { client_id: clientId, asset_symbol: assetSymbol });
-    event.currentTarget.reset();
-    navigator.vibrate?.(25); setPortfolioMessage("Investment saved successfully. The customer portal now reflects the current valuation and performance percentage.");
-    await loadPortfolio(clientId);
   }
 
   async function deleteHolding(holding: Holding) {
@@ -543,7 +558,7 @@ export default function AdminPage() {
         </section>
 
         <section id="portfolio" className="admin-panel portfolio-panel">
-          <div className="admin-panel-heading"><div><p className="eyebrow">Portfolio management</p><h2>Add or update a client investment.</h2></div></div>
+          <div className="admin-panel-heading"><div><p className="eyebrow">Portfolio management</p><h2>Record an investment purchase.</h2></div></div>
           <p className="admin-panel-copy">Search for one customer first. Their portfolio is loaded only after you select them, so customer records stay focused and manageable.</p>
           <form className="portfolio-search" onSubmit={(event) => { event.preventDefault(); void loadPortfolio(portfolioClientId); }}><label>Customer<select value={portfolioClientId} onChange={(event) => setPortfolioClientId(event.target.value)} required><option value="" disabled>Select customer</option>{clients.filter((client) => client.role === "client").map((client) => <option key={client.id} value={client.id}>{nameOf(client)} · {client.country_code || "Country not provided"}</option>)}</select></label><button className="secondary-button" disabled={!portfolioClientId || busyAction === "portfolio-search"} type="submit">{busyAction === "portfolio-search" ? "Loading…" : "Search portfolio"}</button></form>
           <p className="portfolio-action-status" role="status">{portfolioMessage}</p>
@@ -551,10 +566,9 @@ export default function AdminPage() {
             <label>Investment product<input name="assetName" required placeholder="e.g. Global Income Portfolio" /></label>
             <label>Symbol / code<input name="assetSymbol" required maxLength={16} placeholder="e.g. GIP" /></label>
             <label>Product class<input name="assetClass" required placeholder="e.g. Managed fund" /></label>
-            <label>Units held<input name="units" required type="number" min="0" step="any" placeholder="0" /></label>
+            <label>Additional units purchased<input name="units" required type="number" min="0" step="any" placeholder="0 (use 0 to adjust only the current price)" /></label>
             <label>Current unit value (USD)<input name="unitPrice" required type="number" min="0" step="any" placeholder="0.00" /></label>
-            <label>Performance (%)<input name="performancePercent" required type="number" min="-100" step="0.01" defaultValue="0" /></label>
-            <button className="button" disabled={busyAction === "holding"} type="submit">Save investment <span>→</span></button>
+            <button className="button" disabled={busyAction === "holding"} type="submit">Record purchase <span>→</span></button>
           </form>
           <div className="holding-admin-list">{holdings.length ? holdings.map((holding) => <div key={holding.id}><strong>{holding.asset_name} <small>{holding.asset_symbol}</small></strong><span>{Number(holding.units).toLocaleString()} units × ${Number(holding.unit_price).toLocaleString()} · {Number(holding.performance_percent).toFixed(2)}%</span><button className="remove-holding" type="button" disabled={busyAction === `delete-${holding.id}`} onClick={() => void deleteHolding(holding)}>{busyAction === `delete-${holding.id}` ? "Removing…" : "Remove"}</button></div>) : <p className="empty-copy">No investment holdings have been recorded for this customer.</p>}</div></> : <p className="empty-copy">Select a customer above to view or manage their portfolio.</p>}
         </section>

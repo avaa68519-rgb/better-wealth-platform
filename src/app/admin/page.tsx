@@ -80,6 +80,7 @@ export default function AdminPage() {
   const [walletMessage, setWalletMessage] = useState("Staff assign public wallet addresses here. Requests are reviewed separately; cryptocurrency is never sent by this application.");
   const [portfolioMessage, setPortfolioMessage] = useState("Add a new investment or use the same product code to replace its current valuation.");
   const [revaluationMessage, setRevaluationMessage] = useState("Apply a controlled percentage change to all recorded holdings. Every change is written to the audit log.");
+  const [completedAction, setCompletedAction] = useState<string | null>(null);
   const [message, setMessage] = useState("Loading live operations data…");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const walletLocked = useRef(false);
@@ -401,7 +402,8 @@ export default function AdminPage() {
       if (!savedId) { setPortfolioMessage("Unable to identify the saved investment record."); return; }
       await writeAudit("holding", savedId, existing ? "additional_investment_recorded" : "investment_recorded", { client_id: clientId, asset_symbol: assetSymbol });
       formElement.reset(); navigator.vibrate?.(25);
-      setPortfolioMessage(existing ? "Additional purchase recorded successfully. Units and the weighted performance were updated." : "Investment recorded successfully at the current price. Performance starts at 0.00% for a new holding.");
+      const successMessage = existing ? "Additional purchase recorded. Units and weighted performance have been updated." : "New investment recorded at the current price. Performance starts at 0.00% for this new holding.";
+      setPortfolioMessage(successMessage); setCompletedAction(successMessage);
       await loadPortfolio(clientId);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Unexpected client error";
@@ -418,7 +420,8 @@ export default function AdminPage() {
     const { error } = await createClient().from("holdings").delete().eq("id", holding.id);
     setBusyAction(null);
     if (error) { setPortfolioMessage(error.message); return; }
-    navigator.vibrate?.(25); setPortfolioMessage("Investment removed successfully. The customer portfolio has been updated.");
+    const successMessage = "Investment removed. The customer portfolio has been updated.";
+    navigator.vibrate?.(25); setPortfolioMessage(successMessage); setCompletedAction(successMessage);
     await loadPortfolio(activePortfolioClientId);
   }
 
@@ -474,6 +477,7 @@ export default function AdminPage() {
           <p>Wallet addresses are assigned by staff. Requests are reviewed here; cryptocurrency is never sent by this application.</p>
         </div>
         {message && <p className="signin-message" role="status">{message}</p>}
+        {completedAction && <div className="admin-complete-overlay" role="dialog" aria-modal="true" aria-label="Action completed"><section><p className="eyebrow">Action completed</p><h2>Saved successfully.</h2><p>{completedAction}</p><button className="button" type="button" onClick={() => setCompletedAction(null)}>I understand</button></section></div>}
 
         <section id="overview" className="admin-stat-grid">
           <article><span>Client records</span><strong>{clients.length}</strong><small>Role-controlled access</small></article>

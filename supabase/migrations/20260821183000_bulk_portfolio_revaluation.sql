@@ -20,7 +20,8 @@ begin
 
   update public.holdings
   set unit_price = round(unit_price * (1 + (change_percent / 100)), 10),
-      valued_at = now();
+      valued_at = now()
+  where unit_price >= 0;
 
   get diagnostics changed_count = row_count;
 

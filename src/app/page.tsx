@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
+import { CursorRipple } from "@/components/cursor-ripple";
 import { MarketTicker } from "@/components/market-ticker";
 
 const plans = [
@@ -16,10 +17,12 @@ const solutions = [
 
 export default function Home() {
   return <main className="bw-home">
+    <CursorRipple />
     <section className="bw-hero">
       <nav className="bw-nav" aria-label="Primary navigation"><Link href="/" className="brand"><BrandLogo inverse /></Link><div className="bw-nav-links"><a href="#solutions">Solutions</a><a href="#plans">Investment plans</a><a href="#markets">Markets</a></div><div className="bw-nav-actions"><Link href="/sign-in">Log in</Link><Link className="bw-create" href="/create-account">Create account</Link><span className="bw-menu">☰</span></div></nav>
       <div className="bw-hero-copy"><p>Better Wealth Investment Group</p><h1>Access a more<br />considered <em>investment future.</em></h1><span className="bw-rule" /><div className="bw-hero-actions"><Link className="bw-light-button" href="/create-account">Explore investments <b>→</b></Link><div><strong>Open an account in minutes</strong><small>Clear next steps, secure client access</small></div></div></div>
       <div className="bw-moon" aria-hidden="true"><i /><i /><i /></div>
+      <div className="bw-building-foreground" aria-hidden="true"><i /><i /><i /></div>
       <div className="bw-hero-stats"><article><strong>4.5M+</strong><span>Client accounts</span></article><article><strong>145+</strong><span>Countries served</span></article><article><strong>$27.9B</strong><span>Assets managed</span></article><article><strong>Since 2010</strong><span>Founded October 2010</span></article></div>
     </section>
     <MarketTicker />

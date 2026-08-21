@@ -74,6 +74,8 @@ export default function AdminPage() {
   const [audits, setAudits] = useState<Audit[]>([]);
   const [accounts, setAccounts] = useState<PortfolioAccount[]>([]);
   const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [portfolioClientId, setPortfolioClientId] = useState("");
+  const [activePortfolioClientId, setActivePortfolioClientId] = useState("");
   const [selectedAction, setSelectedAction] = useState<PendingAction | null>(null);
   const [walletMessage, setWalletMessage] = useState("Staff assign public wallet addresses here. Requests are reviewed separately; cryptocurrency is never sent by this application.");
   const [portfolioMessage, setPortfolioMessage] = useState("Add a new investment or use the same product code to replace its current valuation.");
@@ -84,7 +86,7 @@ export default function AdminPage() {
 
   async function load() {
     const supabase = createClient();
-    const [clientResult, verificationResult, depositResult, withdrawalResult, auditResult, accountResult] =
+    const [clientResult, verificationResult, depositResult, withdrawalResult, auditResult] =
       await Promise.all([
         supabase
           .from("profiles")
@@ -108,8 +110,7 @@ export default function AdminPage() {
           .from("audit_events")
           .select("id, entity_type, event_type, occurred_at")
           .order("occurred_at", { ascending: false })
-          .limit(10),
-        supabase.from("portfolio_accounts").select("id, client_id, name, currency_code, status").order("created_at", { ascending: false }),
+          .limit(5),
       ]);
 
     const error =
@@ -117,8 +118,7 @@ export default function AdminPage() {
       verificationResult.error ??
       depositResult.error ??
       withdrawalResult.error ??
-      auditResult.error ??
-      accountResult.error;
+      auditResult.error;
 
     if (error) {
       setMessage(`Unable to load operations data: ${error.message}`);
@@ -134,14 +134,22 @@ export default function AdminPage() {
       ].sort((a, b) => Date.parse(b.submitted_at) - Date.parse(a.submitted_at)),
     );
     setAudits((auditResult.data ?? []) as Audit[]);
-    setAccounts((accountResult.data ?? []) as PortfolioAccount[]);
-    const accountIds = (accountResult.data ?? []).map((account) => account.id);
-    if (accountIds.length) {
-      const holdingResult = await supabase.from("holdings").select("id, portfolio_account_id, asset_name, asset_symbol, asset_class, units, unit_price, performance_percent, valuation_currency, valued_at").in("portfolio_account_id", accountIds).order("valued_at", { ascending: false });
-      if (holdingResult.error) { setMessage(`Unable to load holdings: ${holdingResult.error.message}`); return; }
-      setHoldings((holdingResult.data ?? []) as Holding[]);
-    } else setHoldings([]);
     setMessage("");
+  }
+
+  async function loadPortfolio(clientId: string) {
+    if (!clientId) return;
+    setBusyAction("portfolio-search"); setPortfolioMessage("Loading this customer’s portfolio…");
+    const supabase = createClient();
+    const accountResult = await supabase.from("portfolio_accounts").select("id, client_id, name, currency_code, status").eq("client_id", clientId).order("created_at", { ascending: false });
+    if (accountResult.error) { setBusyAction(null); setPortfolioMessage(accountResult.error.message); return; }
+    const currentAccounts = (accountResult.data ?? []) as PortfolioAccount[];
+    const accountIds = currentAccounts.map((account) => account.id);
+    const holdingResult = accountIds.length ? await supabase.from("holdings").select("id, portfolio_account_id, asset_name, asset_symbol, asset_class, units, unit_price, performance_percent, valuation_currency, valued_at").in("portfolio_account_id", accountIds).order("valued_at", { ascending: false }) : { data: [], error: null };
+    setBusyAction(null);
+    if (holdingResult.error) { setPortfolioMessage(holdingResult.error.message); return; }
+    setAccounts(currentAccounts); setHoldings((holdingResult.data ?? []) as Holding[]); setActivePortfolioClientId(clientId);
+    setPortfolioMessage(currentAccounts.length ? "Portfolio loaded. You can amend an existing product by saving it with the same product code." : "No portfolio exists for this customer yet. Add their first approved investment below.");
   }
 
   useEffect(() => {
@@ -354,7 +362,8 @@ export default function AdminPage() {
     if (portfolioLocked.current) return;
     portfolioLocked.current = true;
     const form = new FormData(event.currentTarget);
-    const clientId = String(form.get("clientId"));
+    const clientId = activePortfolioClientId;
+    if (!clientId) { setPortfolioMessage("Select and search for a customer before saving an investment."); return; }
     const assetSymbol = String(form.get("assetSymbol")).trim().toUpperCase();
     setBusyAction("holding"); setPortfolioMessage("Saving this investment valuation…");
     const supabase = createClient();
@@ -380,7 +389,7 @@ export default function AdminPage() {
     await writeAudit("holding", data.id, "holding_valued", { client_id: clientId, asset_symbol: assetSymbol });
     event.currentTarget.reset();
     navigator.vibrate?.(25); setPortfolioMessage("Investment saved successfully. The customer portal now reflects the current valuation and performance percentage.");
-    await load();
+    await loadPortfolio(clientId);
   }
 
   async function deleteHolding(holding: Holding) {
@@ -390,7 +399,7 @@ export default function AdminPage() {
     setBusyAction(null);
     if (error) { setPortfolioMessage(error.message); return; }
     navigator.vibrate?.(25); setPortfolioMessage("Investment removed successfully. The customer portfolio has been updated.");
-    await load();
+    await loadPortfolio(activePortfolioClientId);
   }
 
   return (
@@ -514,10 +523,10 @@ export default function AdminPage() {
 
         <section id="portfolio" className="admin-panel portfolio-panel">
           <div className="admin-panel-heading"><div><p className="eyebrow">Portfolio management</p><h2>Add or update a client investment.</h2></div></div>
-          <p className="admin-panel-copy">Enter the product, units, current unit value, and performance percentage approved by your operations process. These are client-record values only; this system does not execute trades or transfers.</p>
+          <p className="admin-panel-copy">Search for one customer first. Their portfolio is loaded only after you select them, so customer records stay focused and manageable.</p>
+          <form className="portfolio-search" onSubmit={(event) => { event.preventDefault(); void loadPortfolio(portfolioClientId); }}><label>Customer<select value={portfolioClientId} onChange={(event) => setPortfolioClientId(event.target.value)} required><option value="" disabled>Select customer</option>{clients.filter((client) => client.role === "client").map((client) => <option key={client.id} value={client.id}>{nameOf(client)} · {client.country_code || "Country not provided"}</option>)}</select></label><button className="secondary-button" disabled={!portfolioClientId || busyAction === "portfolio-search"} type="submit">{busyAction === "portfolio-search" ? "Loading…" : "Search portfolio"}</button></form>
           <p className="portfolio-action-status" role="status">{portfolioMessage}</p>
-          <form className="portfolio-form" onSubmit={saveHolding}>
-            <label>Client<select name="clientId" required defaultValue=""><option value="" disabled>Select client</option>{clients.filter((client) => client.role === "client").map((client) => <option key={client.id} value={client.id}>{nameOf(client)}</option>)}</select></label>
+          {activePortfolioClientId ? <><form className="portfolio-form" onSubmit={saveHolding}>
             <label>Investment product<input name="assetName" required placeholder="e.g. Global Income Portfolio" /></label>
             <label>Symbol / code<input name="assetSymbol" required maxLength={16} placeholder="e.g. GIP" /></label>
             <label>Product class<input name="assetClass" required placeholder="e.g. Managed fund" /></label>
@@ -526,7 +535,7 @@ export default function AdminPage() {
             <label>Performance (%)<input name="performancePercent" required type="number" min="-100" step="0.01" defaultValue="0" /></label>
             <button className="button" disabled={busyAction === "holding"} type="submit">Save investment <span>→</span></button>
           </form>
-          <div className="holding-admin-list">{holdings.length ? holdings.map((holding) => { const account = accounts.find((item) => item.id === holding.portfolio_account_id); return <div key={holding.id}><strong>{holding.asset_name} <small>{holding.asset_symbol}</small></strong><span>{nameOf(clients.find((client) => client.id === account?.client_id))}</span><span>{Number(holding.units).toLocaleString()} units × ${Number(holding.unit_price).toLocaleString()} · {Number(holding.performance_percent).toFixed(2)}%</span><button className="remove-holding" type="button" disabled={busyAction === `delete-${holding.id}`} onClick={() => void deleteHolding(holding)}>{busyAction === `delete-${holding.id}` ? "Removing…" : "Remove"}</button></div>; }) : <p className="empty-copy">No investment holdings have been recorded yet.</p>}</div>
+          <div className="holding-admin-list">{holdings.length ? holdings.map((holding) => <div key={holding.id}><strong>{holding.asset_name} <small>{holding.asset_symbol}</small></strong><span>{Number(holding.units).toLocaleString()} units × ${Number(holding.unit_price).toLocaleString()} · {Number(holding.performance_percent).toFixed(2)}%</span><button className="remove-holding" type="button" disabled={busyAction === `delete-${holding.id}`} onClick={() => void deleteHolding(holding)}>{busyAction === `delete-${holding.id}` ? "Removing…" : "Remove"}</button></div>) : <p className="empty-copy">No investment holdings have been recorded for this customer.</p>}</div></> : <p className="empty-copy">Select a customer above to view or manage their portfolio.</p>}
         </section>
 
         <section id="wallets" className="admin-wallet-section">
@@ -571,7 +580,7 @@ export default function AdminPage() {
         </section>
 
         <section id="activity" className="admin-panel">
-          <div className="admin-panel-heading"><div><p className="eyebrow">Audit activity</p><h2>Recent administrative events</h2></div></div>
+          <div className="admin-panel-heading"><div><p className="eyebrow">Audit activity</p><h2>Five most recent administrative events</h2></div></div>
           <div className="admin-timeline">
             {audits.length ? audits.map((audit) => (
               <div key={audit.id}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { SignOutButton } from "@/components/sign-out-button";
 import { createClient } from "@/lib/supabase/client";
@@ -22,6 +22,7 @@ export default function FundingPage() {
   const [message, setMessage] = useState("Loading your funding details…");
   const [copied, setCopied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLock = useRef(false);
   const selectedAddress = useMemo(() => addresses.find((address) => address.id === selectedAddressId) ?? addresses[0], [addresses, selectedAddressId]);
 
   async function loadFundingData() {
@@ -45,28 +46,30 @@ export default function FundingPage() {
 
   async function submitDeposit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitLock.current) return;
     if (!selectedAddress) { setMessage("An administrator must assign a deposit wallet before you can submit a deposit reference."); return; }
     const formData = new FormData(event.currentTarget);
-    setIsSubmitting(true); setMessage("");
+    submitLock.current = true; setIsSubmitting(true); setMessage("Submitting your deposit reference…");
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from("deposit_requests").insert({ client_id: user?.id, deposit_address_id: selectedAddress.id, asset_symbol: selectedAddress.asset_symbol, network: selectedAddress.network, declared_amount: Number(formData.get("amount")), transaction_reference: String(formData.get("transactionReference") ?? "").trim() });
-    setIsSubmitting(false);
-    if (error) { setMessage(error.message); return; }
-    event.currentTarget.reset(); setMessage("Deposit reference submitted. The operations team will review it before crediting your account."); await loadFundingData();
+    setIsSubmitting(false); submitLock.current = false;
+    if (error) { setMessage(error.message.includes("deposit_requests_network_transaction_reference_key") ? "This transaction hash has already been submitted. Please do not submit it again; the operations team will review the existing request." : error.message); return; }
+    navigator.vibrate?.(25); event.currentTarget.reset(); setMessage("Deposit reference submitted successfully. The operations team will review it before crediting your account."); await loadFundingData();
   }
 
   async function submitWithdrawal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitLock.current) return;
     const formData = new FormData(event.currentTarget);
     const [asset_symbol, network] = String(formData.get("assetNetwork") ?? "BTC|Bitcoin").split("|");
-    setIsSubmitting(true); setMessage("");
+    submitLock.current = true; setIsSubmitting(true); setMessage("Submitting your withdrawal request…");
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from("withdrawal_requests").insert({ client_id: user?.id, asset_symbol, network, requested_amount: Number(formData.get("amount")), destination_address: String(formData.get("destinationAddress") ?? "").trim() });
-    setIsSubmitting(false);
+    setIsSubmitting(false); submitLock.current = false;
     if (error) { setMessage(error.message.includes("row-level security") ? "Withdrawals are available once identity verification has been approved." : error.message); return; }
-    event.currentTarget.reset(); setMessage("Withdrawal request submitted. The team will review the amount, network, and destination address manually."); await loadFundingData();
+    navigator.vibrate?.(25); event.currentTarget.reset(); setMessage("Withdrawal request submitted successfully. The team will review the amount, network, and destination address manually."); await loadFundingData();
   }
 
   return <main className="portal-shell"><aside className="sidebar"><Link href="/" className="brand sidebar-brand"><span className="brand-mark">BW</span> Better Wealth</Link><p className="sidebar-label">Client portal</p><nav className="side-nav" aria-label="Portal navigation"><Link href="/portal"><span>◈</span> Overview</Link><Link href="/portal/verification"><span>✓</span> Verification</Link><Link className="nav-active" href="/portal/funding"><span>↗</span> Funding</Link><Link href="/portal/support"><span>?</span> Support</Link></nav><SignOutButton /></aside><section className="portal-content funding-content"><header className="portal-header"><div><p className="eyebrow">Funding centre</p><h1>Deposit or withdraw.</h1></div><Link href="/portal" className="back-link">← Back to overview</Link></header>{message && <p className="signin-message" role="status">{message}</p>}<div className="funding-grid"><article className="panel funding-card"><p className="eyebrow">Deposit crypto</p><h2>Send a deposit</h2><p>Select a wallet address that has been assigned to you by the Better Wealth operations team.</p>{addresses.length > 0 ? <><label>Assigned wallet<select value={selectedAddress?.id ?? ""} onChange={(event) => setSelectedAddressId(event.target.value)}>{addresses.map((address) => <option key={address.id} value={address.id}>{address.asset_symbol} · {address.network}</option>)}</select></label><div className="address-box"><small>Your assigned deposit address</small><code>{selectedAddress?.public_address}</code><button type="button" className="secondary-button" onClick={async () => { await navigator.clipboard.writeText(selectedAddress?.public_address ?? ""); setCopied(true); }}>{copied ? "Copied" : "Copy address"}</button></div><form onSubmit={submitDeposit}><label>Amount sent<input name="amount" inputMode="decimal" min="0.00000001" step="any" required placeholder={`0.00 ${selectedAddress?.asset_symbol ?? ""}`} /></label><label>Transaction hash / reference<input name="transactionReference" required placeholder="Paste the transaction hash" /></label><button className="button" disabled={isSubmitting} type="submit">Submit deposit reference <span aria-hidden>→</span></button></form><p className="form-note">Only send the selected asset through the displayed network. Deposits are credited after review and confirmation.</p></> : <div className="address-box"><small>Assigned deposit address</small><strong>Awaiting assignment by Better Wealth operations</strong></div>}</article><article className="panel funding-card"><p className="eyebrow">Withdrawal request</p><h2>Request a withdrawal</h2><p>Enter your own destination wallet address carefully. Better Wealth never requests a private key or seed phrase.</p><form onSubmit={submitWithdrawal}><label>Asset and network<select name="assetNetwork" defaultValue="BTC|Bitcoin">{withdrawalNetworks.map((option) => <option key={`${option.asset}|${option.network}`} value={`${option.asset}|${option.network}`}>{option.asset} · {option.network}</option>)}</select></label><label>Destination wallet address<input name="destinationAddress" required placeholder="Paste your wallet address" /></label><label>Requested amount<input name="amount" inputMode="decimal" min="0.00000001" step="any" required placeholder="0.00" /></label><div className="warning"><strong>Please check the network and address.</strong><span>Once submitted, address changes require a new request. Withdrawals require verified identity and manual approval.</span></div><button className="button" disabled={isSubmitting} type="submit">Request withdrawal <span aria-hidden>→</span></button></form></article></div><article className="panel request-panel"><div><p className="eyebrow">Recent requests</p><h2>{requests.length ? `${requests.length} recent request${requests.length === 1 ? "" : "s"}` : "No requests yet"}</h2><p>{requests.length ? requests.map((request) => `${request.kind} · ${request.asset_symbol} / ${request.network} · ${request.status}`).join(" • ") : "Submitted deposit and withdrawal requests will appear here for your review."}</p></div><span className="status status-review">Manual review</span></article></section></main>;

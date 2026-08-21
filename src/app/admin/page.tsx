@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Client = {
@@ -9,6 +9,8 @@ type Client = {
   first_name: string | null;
   last_name: string | null;
   country_code: string | null;
+  phone_number: string | null;
+  investment_plan: string | null;
   role: string;
   identity_status: string;
 };
@@ -73,8 +75,10 @@ export default function AdminPage() {
   const [accounts, setAccounts] = useState<PortfolioAccount[]>([]);
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [selectedAction, setSelectedAction] = useState<PendingAction | null>(null);
+  const [walletMessage, setWalletMessage] = useState("Staff assign public wallet addresses here. Requests are reviewed separately; cryptocurrency is never sent by this application.");
   const [message, setMessage] = useState("Loading live operations data…");
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const walletLocked = useRef(false);
 
   async function load() {
     const supabase = createClient();
@@ -82,7 +86,7 @@ export default function AdminPage() {
       await Promise.all([
         supabase
           .from("profiles")
-          .select("id, first_name, last_name, country_code, role, identity_status")
+          .select("id, first_name, last_name, phone_number, country_code, investment_plan, role, identity_status")
           .order("created_at", { ascending: false }),
         supabase
           .from("identity_verifications")
@@ -192,12 +196,14 @@ export default function AdminPage() {
 
   async function assignWallet(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (walletLocked.current) return;
+    walletLocked.current = true;
     const form = new FormData(event.currentTarget);
     const [asset_symbol, network] = String(form.get("assetNetwork")).split("|");
     const clientId = String(form.get("clientId"));
     const publicAddress = String(form.get("publicAddress")).trim();
 
-    setBusyAction("wallet");
+    setBusyAction("wallet"); setWalletMessage("Assigning the wallet to this customer…");
     setMessage("");
     const supabase = createClient();
     const {
@@ -222,15 +228,16 @@ export default function AdminPage() {
         client_id: clientId,
       });
     }
-    setBusyAction(null);
+    setBusyAction(null); walletLocked.current = false;
 
     if (error) {
-      setMessage(error.message);
+      setWalletMessage(error.message);
       return;
     }
 
     event.currentTarget.reset();
-    setMessage("Deposit wallet assigned. The public address is now visible only to that client.");
+    navigator.vibrate?.(25);
+    setWalletMessage("Wallet assigned successfully. The public address is now visible only to that client.");
     await load();
   }
 
@@ -470,7 +477,7 @@ export default function AdminPage() {
           {(() => {
             const record = selectedAction.kind === "kyc" ? selectedAction.verification : selectedAction.request;
             const client = clients.find((entry) => entry.id === record.client_id);
-            return <div className="action-detail-body"><div><span>Customer</span><strong>{nameOf(client)}</strong><small>{client?.country_code || "Country not provided"} · {client?.identity_status || "not started"}</small></div>
+            return <div className="action-detail-body"><div><span>Customer</span><strong>{nameOf(client)}</strong><small>{client?.country_code || "Country not provided"} · {client?.identity_status || "not started"}</small><small>Plan: {client?.investment_plan || "Not selected"}</small><small>{client?.phone_number || "No phone number provided"}</small></div>
               {selectedAction.kind === "kyc" ? <div className="detail-files"><p><span>Document type</span><strong>{displayStatus(selectedAction.verification.document_type)}</strong></p><button type="button" disabled={busyAction?.startsWith("file-")} onClick={() => void openKycFile(selectedAction.verification.document_path)}>Open ID document</button><button type="button" disabled={busyAction?.startsWith("file-")} onClick={() => void openKycFile(selectedAction.verification.selfie_path)}>Open selfie with ID</button><small>Files remain private; each review link expires after one minute.</small></div> : <form className="admin-form request-detail-form" onSubmit={(event) => void saveRequestDetails(event, selectedAction.request)}><div className="review-data"><p><span>Asset / network</span><strong>{selectedAction.request.asset_symbol} · {selectedAction.request.network}</strong></p><p><span>Amount</span><strong>{selectedAction.request.declared_amount ?? selectedAction.request.requested_amount}</strong></p>{selectedAction.kind === "deposit" ? <p><span>Transaction reference</span><code>{selectedAction.request.transaction_reference}</code></p> : <p><span>Destination address</span><code>{selectedAction.request.destination_address}</code></p>}</div>{selectedAction.kind === "withdrawal" && <label>Payout transaction reference<input name="payoutReference" defaultValue={selectedAction.request.payout_reference ?? ""} placeholder="Enter after the transfer is completed" /></label>}<label>Internal review note<textarea name="internalNote" defaultValue={selectedAction.request.internal_note ?? ""} placeholder="Reason for decision, confirmations completed, or exception notes" /></label><button className="button" disabled={busyAction === `details-${selectedAction.request.kind}-${selectedAction.request.id}`} type="submit">Save review details</button></form>}
             </div>;
           })()}
@@ -512,6 +519,7 @@ export default function AdminPage() {
             <p className="eyebrow">Manual wallet assignment</p>
             <h2>Assign a public deposit address.</h2>
             <p>Enter only the customer’s assigned public deposit address and network. Never enter a private key, seed phrase, exchange credential, or payout credential.</p>
+            <p className="wallet-action-status" role="status">{walletMessage}</p>
           </div>
           <form className="admin-wallet-card admin-form" onSubmit={assignWallet}>
             <label>Client

@@ -187,6 +187,12 @@ button,input,select { font:inherit; }
 .funding-content > .request-panel { order:2; }
 .funding-content > .signin-message { margin-bottom:0; margin-top:18px; order:3; }
 
+/* Prevent the recent-request summary from colliding with its review status. */
+.request-panel { align-items:flex-start; gap:22px; }
+.request-panel > div { flex:1; min-width:0; }
+.request-panel > .status { flex:none; margin-top:2px; white-space:nowrap; }
+@media (max-width:700px) { .request-panel { flex-direction:column; gap:12px; }.request-panel > .status { margin-top:0; } }
+
 /* Keep every plan-card label and feature at a clear, consistent reading weight. */
 .bw-plan-grid > article > p,.bw-plan-grid section small,.bw-plan-grid li,.bw-plan-grid a { font-family:"Open Sans",Arial,sans-serif; font-weight:700; }
 .bw-plan-grid > article > p { font-weight:600; }

@@ -19,8 +19,7 @@ export default function PortalOverview() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [message, setMessage] = useState("Loading your account…");
 
-  useEffect(() => {
-    void (async () => {
+  async function loadPortalData() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { window.location.assign("/sign-in?next=/portal"); return; }
@@ -38,7 +37,14 @@ export default function PortalOverview() {
       setHoldings((holdingResult.data ?? []) as Holding[]);
       setRequests([...(depositResult.data ?? []).map((item) => ({ ...item, amount: Number(item.declared_amount), kind: "Deposit" as const })), ...(withdrawalResult.data ?? []).map((item) => ({ ...item, amount: Number(item.requested_amount), kind: "Withdrawal" as const }))].sort((a, b) => Date.parse(b.submitted_at) - Date.parse(a.submitted_at)));
       setMessage("");
-    })();
+  }
+
+  useEffect(() => {
+    void loadPortalData();
+    const refreshTimer = window.setInterval(() => { void loadPortalData(); }, 15_000);
+    const refreshOnFocus = () => { void loadPortalData(); };
+    window.addEventListener("focus", refreshOnFocus);
+    return () => { window.clearInterval(refreshTimer); window.removeEventListener("focus", refreshOnFocus); };
   }, []);
 
   const value = useMemo(() => holdings.reduce((total, holding) => total + Number(holding.units) * Number(holding.unit_price), 0), [holdings]);

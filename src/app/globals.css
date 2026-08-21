@@ -166,3 +166,6 @@ button,input,select { font:inherit; }
 /* Match the portfolio narrative's start line to the market-perspective narrative. */
 .bw-portal-section { padding-left:clamp(32px,7vw,118px); padding-right:clamp(32px,7vw,118px); }
 .bw-portal-copy { justify-self:start; }
+
+/* Roboto replaces the former Inter UI treatment; Poppins remains reserved for display headings. */
+.bw-home,.signin-page,.portal-shell,.admin-shell,.side-nav a,.admin-nav a,.bw-dashboard-performance header strong,.bw-dashboard-allocation header strong,.bw-dashboard-holdings header strong { font-family:"Roboto",Arial,sans-serif; }

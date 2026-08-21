@@ -180,6 +180,13 @@ button,input,select { font:inherit; }
 .bw-cta > div a { align-items:center; display:inline-flex; font-family:"Poppins",Arial,sans-serif; font-size:13px; font-weight:700; gap:18px; justify-content:center; letter-spacing:0; min-height:54px; min-width:184px; text-align:center; }
 .bw-cta > div a b { line-height:1; margin:0; }
 
+/* Keep funding feedback beside the outcome area, after the two action cards. */
+.funding-content { display:flex; flex-direction:column; }
+.funding-content > .portal-header { order:0; }
+.funding-content > .funding-grid { order:1; }
+.funding-content > .request-panel { order:2; }
+.funding-content > .signin-message { margin-bottom:0; margin-top:18px; order:3; }
+
 /* Keep every plan-card label and feature at a clear, consistent reading weight. */
 .bw-plan-grid > article > p,.bw-plan-grid section small,.bw-plan-grid li,.bw-plan-grid a { font-family:"Open Sans",Arial,sans-serif; font-weight:700; }
 .bw-plan-grid > article > p { font-weight:600; }

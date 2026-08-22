@@ -213,3 +213,80 @@ button,input,select { font:inherit; }
 /* Keep every plan-card label and feature at a clear, consistent reading weight. */
 .bw-plan-grid > article > p,.bw-plan-grid section small,.bw-plan-grid li,.bw-plan-grid a { font-family:"Open Sans",Arial,sans-serif; font-weight:700; }
 .bw-plan-grid > article > p { font-weight:600; }
+
+/* Cohesive 2026 product system across public, client, and staff views. */
+:root { --gold:#37766e; --sand:#dceeea; --brand-deep:#08292b; --brand-green:#075a35; --brand-mint:#78bcad; --surface:#f3f7f5; }
+body { background:var(--surface); font-family:"Open Sans",Arial,sans-serif; }
+.brand-logo { align-items:center; display:inline-flex; gap:10px; }
+.brand-logo svg { fill:#7cb9ad; height:32px; width:32px; }
+.brand-logo svg path:last-child { fill:#08292b; }
+.brand-logo > span { display:grid; line-height:1; }
+.brand-logo b { font-family:"Poppins",Arial,sans-serif; font-size:13px; letter-spacing:-.025em; }
+.brand-logo small { font-family:"Open Sans",Arial,sans-serif; font-size:7px; letter-spacing:.13em; margin-top:4px; text-transform:uppercase; }
+.brand-logo-inverse svg { fill:#dceeea; }.brand-logo-inverse svg path:last-child { fill:#0a3132; }
+.auth-brand { left:clamp(20px,4vw,54px); position:absolute; top:clamp(20px,4vw,42px); }
+
+.bw-mobile-menu { position:relative; }
+.bw-mobile-menu summary { border:1px solid rgba(255,255,255,.28); cursor:pointer; font-size:17px; list-style:none; padding:8px 11px; }
+.bw-mobile-menu summary::-webkit-details-marker { display:none; }
+.bw-mobile-menu > div { background:#08292b; border:1px solid rgba(255,255,255,.18); box-shadow:0 18px 40px rgba(0,0,0,.3); display:grid; min-width:190px; padding:10px; position:absolute; right:0; top:calc(100% + 10px); }
+.bw-mobile-menu > div a { color:#e7f0ed; font-family:"Poppins",Arial,sans-serif; font-size:11px; padding:11px 12px; }
+.bw-mobile-menu > div a:hover { background:rgba(120,188,173,.14); }
+@media (min-width:901px) { .bw-mobile-menu { display:none; } }
+
+.bw-portal-section { gap:clamp(42px,5vw,76px); grid-template-columns:minmax(320px,.85fr) minmax(520px,1.15fr); overflow:hidden; }
+.bw-portfolio-dashboard { justify-self:end; max-width:590px; width:100%; }
+.bw-portfolio-growth-line { height:86%; inset:7% 0 auto; overflow:visible; }
+
+.sidebar,.admin-sidebar { background:var(--brand-deep); }
+.side-nav a span,.admin-nav a span,.admin-nav a b,.admin-badge,.eyebrow,.panel-heading a,.back-link { color:#78bcad; }
+.signout-button:hover { border-color:#78bcad; }
+.notice,.warning,.attention { background:#edf6f3 !important; border-color:#b8d9d0 !important; color:#234f49 !important; }
+.notice-symbol { border-color:#5fae9c; color:#37766e; }
+.status-pending,.status-review { background:#e1f0ec !important; color:#397b71 !important; }
+.activity-marker { background:#16875d; }
+.performance-chart polyline { stroke:#16875d; }
+.balance-section { background:linear-gradient(120deg,#061b2e,#0b3b3a); }
+.balance-actions .button,.admin-content .button { background:#b7ddd4; border-color:#b7ddd4; color:#102d31; }
+.panel,.stat-grid article,.admin-panel,.admin-stat-grid article,.funding-card { border-color:#d4e1dd; box-shadow:0 8px 28px rgba(7,42,41,.04); }
+.portal-content,.admin-content { max-width:1500px; }
+.portal-content h1,.portal-content h2,.admin-content h1,.admin-content h2,.signin-card h1 { text-wrap:balance; }
+.portal-content p,.admin-content p,.signin-card p { line-height:1.6; }
+.button:focus-visible,.secondary-button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible { outline:3px solid rgba(22,135,93,.38); outline-offset:3px; }
+
+@media (max-width:1050px) {
+  .portal-shell,.admin-shell { display:block; }
+  .sidebar,.admin-sidebar { align-items:center; display:flex; flex-direction:row; gap:12px; overflow-x:auto; padding:10px 16px; position:sticky; top:0; z-index:30; }
+  .sidebar-brand,.admin-sidebar .brand,.sidebar-label,.sidebar-footer,.admin-badge { display:none; }
+  .side-nav,.admin-nav { display:flex; gap:4px; min-width:max-content; }
+  .side-nav a,.admin-nav a { font-size:12px; padding:9px 10px; white-space:nowrap; }
+  .side-nav a span,.admin-nav a span { display:none; }
+  .sidebar .signout-button { margin:0 0 0 auto; min-width:max-content; }
+  .portal-content,.admin-content { padding:28px 18px 50px; }
+}
+@media (max-width:900px) {
+  .bw-nav-links { display:none; }
+  .bw-portal-section { grid-template-columns:1fr; }
+  .bw-portfolio-dashboard { justify-self:center; max-width:620px; }
+}
+@media (max-width:620px) {
+  .bw-nav-actions > a,.bw-create { display:none !important; }
+  .bw-mobile-menu { display:block; }
+  .bw-hero-copy { min-width:0; overflow:hidden; }
+  .bw-hero h1 { font-size:clamp(43px,12.5vw,58px); max-width:100%; overflow-wrap:anywhere; }
+  .bw-hero h1 em { display:block; }
+  .bw-hero h1 span { max-width:100%; }
+  .bw-hero-subtitle { max-width:100% !important; overflow-wrap:anywhere; }
+  .bw-hero-actions,.bw-light-button { max-width:100%; width:100%; }
+  .bw-hero-stats strong { font-size:21px; }
+  .bw-portfolio-growth-line { display:none; }
+  .balance-section,.portal-header,.admin-header { align-items:flex-start; flex-direction:column; gap:20px; }
+  .balance-actions { flex-wrap:wrap; }
+  .stat-grid,.admin-stat-grid { grid-template-columns:1fr; }
+  .activity { align-items:start; grid-template-columns:10px 1fr auto; }
+  .activity time { grid-column:2; text-align:left; }
+}
+@media (prefers-reduced-motion:reduce) {
+  html { scroll-behavior:auto; }
+  *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+}

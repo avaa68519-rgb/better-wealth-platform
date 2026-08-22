@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
+import { BrandLogo } from "@/components/brand-logo";
 import { createClient } from "@/lib/supabase/client";
 
 const countries = [
@@ -99,7 +100,7 @@ export default function CreateAccountPage() {
 
   return (
     <main className="signin-page">
-      <Link href="/" className="brand"><span className="brand-mark">BW</span> Better Wealth</Link>
+      <Link href="/" className="brand auth-brand"><BrandLogo /></Link>
       <section className="signin-card signup-card">
         <p className="eyebrow">Client portal</p>
         <h1>Create your account.</h1>

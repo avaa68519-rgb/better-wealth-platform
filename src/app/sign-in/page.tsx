@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
+import { BrandLogo } from "@/components/brand-logo";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignInPage() {
@@ -40,7 +41,7 @@ export default function SignInPage() {
 
   return (
     <main className="signin-page">
-      <Link href="/" className="brand"><span className="brand-mark">BW</span> Better Wealth</Link>
+      <Link href="/" className="brand auth-brand"><BrandLogo /></Link>
       <section className="signin-card">
         <p className="eyebrow">Client portal</p>
         <h1>Welcome back.</h1>
